@@ -113,9 +113,16 @@ func (sk *Sketch) Merge(other *Sketch) error {
 		// Nothing to do
 		return nil
 	}
-	cpOther := other.Clone()
+	return sk.MergeDestructive(other.Clone())
+}
 
-	if sk.p != cpOther.p {
+func (sk *Sketch) MergeDestructive(other *Sketch) error {
+	if other == nil {
+		// Nothing to do
+		return nil
+	}
+
+	if sk.p != other.p {
 		return errors.New("precisions must be equal")
 	}
 
@@ -134,26 +141,26 @@ func (sk *Sketch) Merge(other *Sketch) error {
 		sk.toNormal()
 	}
 
-	if cpOther.sparse() {
-		for k := range cpOther.tmpSet {
-			i, r := decodeHash(k, cpOther.p, pp)
+	if other.sparse() {
+		for k := range other.tmpSet {
+			i, r := decodeHash(k, other.p, pp)
 			sk.insert(i, r)
 		}
 
-		for iter := cpOther.sparseList.Iter(); iter.HasNext(); {
-			i, r := decodeHash(iter.Next(), cpOther.p, pp)
+		for iter := other.sparseList.Iter(); iter.HasNext(); {
+			i, r := decodeHash(iter.Next(), other.p, pp)
 			sk.insert(i, r)
 		}
 	} else {
-		if sk.b < cpOther.b {
-			sk.regs.rebase(cpOther.b - sk.b)
-			sk.b = cpOther.b
+		if sk.b < other.b {
+			sk.regs.rebase(other.b - sk.b)
+			sk.b = other.b
 		} else {
-			cpOther.regs.rebase(sk.b - cpOther.b)
-			cpOther.b = sk.b
+			other.regs.rebase(sk.b - other.b)
+			other.b = sk.b
 		}
 
-		for i, v := range cpOther.regs.tailcuts {
+		for i, v := range other.regs.tailcuts {
 			v1 := v.get(0)
 			if v1 > sk.regs.get(uint32(i)*2) {
 				sk.regs.set(uint32(i)*2, v1)
@@ -164,6 +171,7 @@ func (sk *Sketch) Merge(other *Sketch) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -186,7 +194,7 @@ func (sk *Sketch) toNormal() {
 func (sk *Sketch) insert(i uint32, r uint8) bool {
 	changed := false
 	if r-sk.b >= capacity {
-		//overflow
+		// overflow
 		db := sk.regs.min()
 		if db > 0 {
 			sk.b += db
